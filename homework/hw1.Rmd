@@ -116,7 +116,7 @@ Now write a bash script which repeats the following cycle of steps for 99 times:
 
 **Question:** Does the size of the folder look reasonable relative to the sizes of the individual files inside it? (Use `ls -l -h` to list the files with the size info; `-l` is for "long.") If not, why would that be? How would this explain why [Github discourages you from commiting (large) binary files](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)?
 
-**Your answer:** (To be filled.)
+**Your answer:** No. While the files inside the folder add up to 3.9M, the size of the folder is 8B. This is because the "size of the folder" is really the size of space that is used to store the meta information of the directory; while the 3.9M is the space to store the files inside the folder.
 
 ## Things to commit and submit
 
