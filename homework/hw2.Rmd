@@ -52,7 +52,16 @@ sample_var_with_question_mark <- (sample_sec_mom - (sample_mean)^2)
 ```
 
 ## Things to commit/submit
-Answers to the questions above.
+Answer: the `sample_mean` is close to 10^10, but the `sample_var_with_question_mark` is far from 1, 
+and gets to +/- 10 thousands. The $\theta$s generated each iteration follows the distribution of N(1e10, 1).
+But the result calculated by this method is wrong, because the 1e20 part of theta^2 is so large that
+it takes up too many "slots" of the fraction of the floating point, so that the rnorm(1) part is rounded
+"earlier", resulting in a much bigger or much smaller number. The adding at each iteration can worsen it,
+and as iterations go, it goes completely wrong.
+
+The estimates can be extremely large (60000+) or extremely low (-60000).
+
+Bonus: Chi-sq?
 
 
 # Exercise 2: Numerical differentiation
