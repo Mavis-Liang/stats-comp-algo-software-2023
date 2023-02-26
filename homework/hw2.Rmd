@@ -123,6 +123,12 @@ Also, what is the slope in the "latter part" of your plotted line, roughly speak
 Explain why we observe such a slope in the relative error. 
 (Hint: Consider a machine with 10 decimal digits of accuracy. What happens if we numerically differentiate $f(x) = x$ at $x = 1$ with $\Delta x = 0.1, 0.01, 0.001, \ldots$.)
 
+**Ansers:** the slope is expected to be 2, as the error term for the numerical approcimate is $\Delta x^2$ and the analytical estimate is fixed. Therefore, the log relative error is linear to the $log \Delta x$ term.
+
+However, the plot is differet. Only the very beginging part of it agrees to the slope 2 increase. The line starts to plateau after $\Delta x > 2^4$, and increases again and dramatically, after $\Delta x > 2^40$, roughtly. 
+
+That is because the rounding error becomes more significant as $\Delta x$ becomes smaller. In the floating point calculation, the more digits the number needs to be represented, the more it has to be truncated. As the numbers of the digits increase by 1 at a time, the accuary decrease by 2. In log scale, the slope becomes 2$\times$2 = 4 in the later part of the plot.
+
 ## Part B: Extention to multivariate functions
 
 As mentioned in the lecture, the finite difference method extends to a function with multivariate input $f: \mathbb{R}^d \to \mathbb{R}$ and can be used to approximate the gradient $\nabla f(\boldsymbol{x})$.
