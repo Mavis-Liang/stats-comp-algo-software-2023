@@ -47,6 +47,9 @@ If not (quite), why might that be?
 I misspoke about the R's built-in `chol()` function during the lecture:
 when applied to a positive-definite `A`, the function actually returns an _upper-triangular_ matrix `R` such that `t(R) %*% R == A`.
 
+**Answer:**
+The speed in the solve/Cholesky is about twice of QR, which is quite different from the complexity analysis, as QR is $4/3p^3$ when n=p (in our case) while Cholesky is $p^3$.
+
 ```{r, eval=FALSE}
 # Import the `rand_positive_def_matrix` function
 source(file.path("R", "random_matrix.R"))
@@ -56,7 +59,10 @@ A <- rand_positive_def_matrix(mat_size, cond_num = 1e3)
 b <- rnorm(mat_size)
 
 solve_via_cholesky <- function(A, b) {
-  # Fill in
+  ## solve "Ax = b" question via cholesky decomp
+  L <- chol(A)
+  X <- backsolve(t(L), forwardsolve(L, t(A) %*% b))
+  return(c(X))
 }
 
 bench::mark(
@@ -66,7 +72,7 @@ bench::mark(
   solve_via_cholesky(A, b)
 )
 bench::mark(
-  # Solve via QR decomposition
+  qr.solve(A, b)
 )
 ```
 
@@ -88,6 +94,9 @@ What is the relative difference in $\ell^2$-norm?
 How about the coordinate-wise relative differences?
 Are the observed magnitudes of the differences what you'd expect?
 
+**Answer:**
+Both the $\ell^2$-norm and the coordinate-wise relative differences are in the scale of e-16, which is as expected as the long double provides more accuracy when rounding the numbers.
+
 ```{r, eval=FALSE}
 Rcpp::sourceCpp(file.path("src", "matvec_double.cpp"))
 Rcpp::sourceCpp(file.path("src", "matvec_ldouble.cpp"))
@@ -99,7 +108,11 @@ A <- rand_positive_def_matrix(mat_size, cond_num = 1e3)
 x <- rnorm(mat_size)
 
 # Fill in
+double <- matvec_double(A, x)
+ldouble <- matvec_ldouble(A, x)
 
+l2 <- sqrt(sum((double - ldouble)^2)) / sqrt(sum(double^2))
+coordinate_wise_diff <- abs(double - ldouble) / abs(double)
 ```
 
 ### Task &#x2F06;
@@ -110,6 +123,8 @@ Then solve a positive-definite system $\bA \bx = \bb$ for $\bx$ using the three 
 **Questions:**
 Which algorithm appears to be more accurate than the others? 
 Visually demonstrate your answer.
+
+**Answer**With only visual check, the QR and the solve() is more accurate than cholesky.
 
 ```{r, eval=FALSE}
 set.seed(1918)
@@ -122,7 +137,33 @@ A <- rand_positive_def_matrix(mat_size, cond_num)
 x <- rnorm(mat_size)
 
 # Fill in
+b <- matvec_ldouble(A, x)
 
+x_solve <- solve(A, b)
+x_chol <- solve_via_cholesky(A, b)
+x_qr <- qr.solve(A, b)
+
+df <- data.frame(x = x, x_solve, x_chol, x_qr)
+df_noChol <- data.frame(x = x, x_solve, x_qr)
+
+# Convert data to long format
+df_long <- tidyr::gather(df, key = "group", value = "y", -x)
+df_long_noChol <- tidyr::gather(df_noChol, key = "group", value = "y", -x)
+library(ggplot2)
+# Create plot with jittered scatter plot
+ggplot(df_long, aes(x = x, y = y, color = group)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_classic() +
+  labs(x = "x",
+       y = "y",
+       color = "Group")
+
+ggplot(df_long_noChol, aes(x = x, y = y, color = group)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_classic() +
+  labs(x = "x",
+       y = "y",
+       color = "Group")
 ```
 
 ### Task &#x4E09;
@@ -139,6 +180,11 @@ We also vary the condition number of $\bA$ and assess whether the results would 
 * Vary the condition number in the range $10^6 \sim 10^{12}$, e.g. by trying $10^6$, $10^9$, and $10^{12}$.
 * Do you see any patterns in the numerical errors across the three algorithms, metrics, and/or condition numbers? Show some plots to support your conclusion.
 
+**Answers**
+When comparing three algorithms in all the metrics fixing the condition number, the method of `lu` and `qr` outperforms `cholesky` in all metrics describing accuracies. For the `cholesky`, while the normalized and 5th/95th errors vary a lot among different rounds of simulations, the medians appears to be much stable, and the errors within each rounds are low.
+
+Changing the condition number, the errors in cholesky becomes even bigger.
+
 **Note:** 
 The QR solver will throw an error when the system is ill-condition enough that the numerical solution might not be very accurate. 
 To force it to return the solution in any case, set `tol = .Machine$double.eps`.
@@ -150,7 +196,8 @@ source(file.path("R", "num_linalg_sim_study_helper.R"))
 n_sim <- 32L
 mat_size <- 512L
 cond_num <- 1e6
-metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile")
+metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile",
+             "variance")
   # TODO: add another metric and modify the helper script accordingly
 
 rel_error_list <- lapply(
@@ -163,7 +210,9 @@ for (sim_index in 1:n_sim) {
   x <- rnorm(mat_size) 
   b <- matvec_ldouble(A, x)
   x_approx <- list( 
-    # Fill in
+    lu = solve(A, b),
+    chol = solve_via_cholesky(A, b),
+    qr = qr.solve(A, b, tol = .Machine$double.eps)
   )
   for (method in c("lu", "chol", "qr")) {
     rel_error <- lapply(
@@ -177,6 +226,61 @@ for (sim_index in 1:n_sim) {
   }
 }
 
-# TODO: visually compare errors
+
+## comparing norm
+library(tidyverse)
+data.frame(lu = rel_error_list[["lu"]][["norm"]],
+           chol = rel_error_list[["chol"]][["norm"]],
+           qr = rel_error_list[["qr"]][["norm"]],
+           rounds = 1:32) %>%
+  pivot_longer(cols = c("lu", "chol", "qr"),
+               values_to = "error_norm",
+               names_to = "method") %>%
+  ggplot(aes(x=rounds, y=error_norm, color=method)) +
+    geom_point()
+## comparing median
+data.frame(lu = rel_error_list[["lu"]][["median"]],
+           chol = rel_error_list[["chol"]][["median"]],
+           qr = rel_error_list[["qr"]][["median"]],
+           rounds = 1:32) %>%
+  pivot_longer(cols = c("lu", "chol", "qr"),
+               values_to = "error_median",
+               names_to = "method") %>%
+  ggplot(aes(x=rounds, y=error_median, color=method)) +
+    geom_point()
+## comparing ninety_five_percentile
+data.frame(lu = rel_error_list[["lu"]][["ninety_five_percentile"]],
+           chol = rel_error_list[["chol"]][["ninety_five_percentile"]],
+           qr = rel_error_list[["qr"]][["ninety_five_percentile"]],
+           rounds = 1:32) %>%
+  pivot_longer(cols = c("lu", "chol", "qr"),
+               values_to = "error_ninety_five_percentile",
+               names_to = "method") %>%
+  ggplot(aes(x=rounds, y=error_ninety_five_percentile, color=method)) +
+    geom_point()
+
+
+## comparing five_percentile
+
+data.frame(lu = rel_error_list[["lu"]][["five_percentile"]],
+           chol = rel_error_list[["chol"]][["five_percentile"]],
+           qr = rel_error_list[["qr"]][["five_percentile"]],
+           rounds = 1:32) %>%
+  pivot_longer(cols = c("lu", "chol", "qr"),
+               values_to = "error_five_percentile",
+               names_to = "method") %>%
+  ggplot(aes(x=rounds, y=error_five_percentile, color=method)) +
+    geom_point()
+
+## comparing variance
+data.frame(lu = rel_error_list[["lu"]][["variance"]],
+           chol = rel_error_list[["chol"]][["variance"]],
+           qr = rel_error_list[["qr"]][["variance"]],
+           rounds = 1:32) %>%
+  pivot_longer(cols = c("lu", "chol", "qr"),
+               values_to = "error_variance",
+               names_to = "method") %>%
+  ggplot(aes(x=rounds, y=error_variance, color=method)) +
+    geom_point()
 
 ```
