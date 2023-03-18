@@ -40,7 +40,7 @@ Try running the code chunk multiple times.
 ```{r, error=TRUE, eval=FALSE}
 first_val <- inner_prod(v, w)
 
-for (i in 1:10^6) {
+for (i in 1:3) {
   v <- rep(1, vec_size)
   w <- rep(1, vec_size)
   subseq_val <- inner_prod(v, w)
@@ -49,11 +49,17 @@ for (i in 1:10^6) {
     stop("The last inner prod result disagrees with the previous ones.")
   }
 }
+
 ```
 
 **Questions:**
 What behavior do you observe above? How do you explain it?
 
+**Answers**
+An error is raised: "Error: The last inner prod result disagrees with the previous ones."
+I don't know why. may be it's related to the storage of the vectors? The vectors are on the edge of exceeding the 
+maximum length.
+Also, I notice the bug here which is related to the increment of i.
 
 ## Part B: Sloppy matrix-matrix multiplication
 
@@ -79,6 +85,11 @@ dgemm_eigen(A, B)
 
 **Questions:**
 What do you get as an output? What if you re-run the code chunk? Explain the observed behavior.
+
+**Answers:**
+I get $4\times 2$ matrix every time. While the first columns are 1024s, the second column is also same for every rows, but the number varies from time to time.
+
+I guess that's because Rcpp automatically fills the first columns in B with 1s to the length of 1024, but it fills a random number for B's second column. 
 
 ## Part C: Consequence of "tresspassing"
 
@@ -113,6 +124,14 @@ Running the same piece of code from an R console (instead of an RStudio session)
 * Why does the second code chunk run fine?
 * Modify `axpy_c.cpp` to make the function safer to use.
 
+**Answers:**
+When running the first code chunk, R session aborts (even if I run it in the console).
+
+The reason is that when we try to add x to y and x is shorter, we can't allocate space for the numbers to add in y.
+But it's ok if y is longer because the space is already allocated. Rcpp adds 0s to y when x is running beyond.
+
+Also, the n in the code which determines how many iterations, are assigned with the length of x.
+
 
 # Exercise 3: Multiplying two matrices ain't quite what you learned in your linear algebra class
 
@@ -141,6 +160,8 @@ B <- matrix(rnorm(n_inner * n_col_out), nrow = n_inner, ncol = n_col_out)
 
 ```{r}
 # Check the output of `row_col_dot_matmat`
+baseR_result <- A %*% B
+matmat_result <- row_col_dot_matmat(A, B)
 ```
 
 ## Part B: Going one step beyond your linear algebra class
@@ -152,19 +173,33 @@ Then compare performances of `row_col_dot_matmat` and `col_oriented_matmat` (but
 Which one is faster and why?
 
 ```{r}
-# Check and benchmark
+## check and test
+matmat_col_ori_result <- col_oriented_matmat(A, B)
+
+n_row_out <- 10L
+n_inner <- 15L
+n_col_out <- 12L
+A <- matrix(rnorm(n_row_out * n_inner), nrow = n_row_out, ncol = n_inner)
+B <- matrix(rnorm(n_inner * n_col_out), nrow = n_inner, ncol = n_col_out)
+
+bench::mark(row_col_dot_matmat(A, B))
+bench::mark(col_oriented_matmat(A, B))
 ```
 
 Also compare with performance of the matrix-matrix multiplication via `%*%` in R, which uses whatever the BLAS library your R was configured with.
 (You can find out which BLAS library R is using via `sessionInfo()` or `extSoftVersion()`.) 
 
 ```{r}
-# Fill in
+bench::mark(A %*% B)
 ```
 
 When benchmarking alternative implementations (or alternative algorithms, more generally), keep in mind that the relative performance depends significantly on the size of a test problem.
 It is important, therefore, to benchmark your implementation/algorithm on problems of realistic size. 
 See the benchmark results of linear algebra libraries from [the Eigen development team](https://eigen.tuxfamily.org/index.php?title=Benchmark) and the results under "Gcbd benchmark" in [this github repository](https://github.com/andre-wojtowicz/blas-benchmarks), for example.
+
+**Answer**
+The colunm-oriented one is actually slower.
+The base-R one is much after than the other two.
 
 
 ## Part C: Doing it the right way
@@ -215,5 +250,10 @@ Rcpp::sourceCpp(file.path("..", "lecture", "src", "gemm_eigen.cpp"))
 
 ```{r, eval=FALSE}
 # Benchmark
-dgemm_eigen(A, B)
+bench::mark(dgemm_eigen(A, B))
 ```
+
+**Answers**
+Unfortunately, the MakeVar file on my laptop (Win 11) is not writable. I couldn't find the way to open it as administrator...
+
+But when using default flag (turning on SSE) the Eigen function outperforms the two I wrote, but not as good as base R's %*%.

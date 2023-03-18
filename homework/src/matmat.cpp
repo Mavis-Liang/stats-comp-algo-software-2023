@@ -12,8 +12,19 @@ NumericMatrix row_col_dot_matmat(
   }
   int n_row_out = A.nrow();
   int n_col_out = B.ncol();
+  int n_inner = A.ncol();
   NumericMatrix result(n_row_out, n_col_out);
-  // Fill in; remember to use (,) instead of [,] for accessing matrix elements
+  
+  for(int i = 0; i < n_row_out; i++) {
+    for(int j = 0; j < n_col_out; j++) {
+      double sum = 0;
+      for(int k = 0; k < n_inner; k++) {
+        sum += A(i, k) * B(k, j);
+      }
+      result(i, j) = sum;
+    }
+  }
+  
   return result;
 }
 
@@ -29,7 +40,12 @@ NumericMatrix col_oriented_matmat(
   NumericMatrix result(n_row_out, n_col_out);
   for (int j = 0; j < n_col_out; ++j) {
     // Calculate result[, j] = A %*% B[, j] in column-oriented manner for each j
-    // Fill in
+    NumericVector bj = B(Rcpp::_, j);
+    for(int i = 0; i < n_row_out; i++) {
+      NumericVector ai = A(i, Rcpp::_);
+      result(i, j) = sum(ai * bj);
+    }
+    
   }
   return result;
 }
